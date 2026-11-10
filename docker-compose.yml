@@ -1,0 +1,54 @@
+# SnowLuma + AstrBot 本机一键部署
+# 启动: docker compose up -d  或  docker-compose up -d
+# 首选拉取失败时镜像已用 DaoCloud 前缀；若仍失败见使用说明
+
+services:
+  snowluma:
+    image: m.daocloud.io/docker.io/motricseven7/snowluma:latest
+    container_name: snowluma
+    restart: unless-stopped
+    shm_size: 1g
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 1048576
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      - SNOWLUMA_WEBUI_HOST=0.0.0.0
+      - SNOWLUMA_WEBUI_PORT=5099
+      - SNOWLUMA_QQ_FLAGS=--disable-gpu --disable-software-rasterizer --disable-gpu-compositing
+      - TZ=Asia/Shanghai
+    ports:
+      - "127.0.0.1:6081:6081"    # noVNC 扫码桌面（仅本机）
+      - "127.0.0.1:5099:5099"    # SnowLuma WebUI（仅本机）
+      - "127.0.0.1:13000:3000"   # OneBot HTTP
+      - "127.0.0.1:13001:3001"   # OneBot WebSocket
+    volumes:
+      - snowluma-gateway-data:/app/data
+      - snowluma-client-config:/app/.config
+      - snowluma-client-data:/app/.local/share
+
+  astrbot:
+    image: m.daocloud.io/docker.io/soulter/astrbot:latest
+    container_name: astrbot
+    restart: unless-stopped
+    environment:
+      - TZ=Asia/Shanghai
+    ports:
+      - "127.0.0.1:6185:6185"    # AstrBot WebUI（仅本机）
+      - "127.0.0.1:6199:6199"    # OneBot 反向 WS 监听
+    volumes:
+      - astrbot-data:/AstrBot/data
+
+volumes:
+  snowluma-gateway-data:
+    name: snowluma-gateway-data
+  snowluma-client-config:
+    name: snowluma-client-config
+  snowluma-client-data:
+    name: snowluma-client-data
+  astrbot-data:
+    name: astrbot-data

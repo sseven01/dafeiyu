@@ -1,0 +1,59 @@
+SnowLuma + AstrBot 本机部署 - 快速上手（v1.1）
+================================================
+
+【你在这台电脑上要做的 5 步】
+
+第1步：安装并启动 Docker Desktop
+  - 下载：https://www.docker.com/products/docker-desktop/
+  - 启动后，PowerShell 执行： docker --version   能出版本号即可
+
+第2步：把整个 deploy-kit 文件夹放到本机（这是「脚本文件夹」，只有几十 KB）
+  例如： D:\docker-snowluma-astrbot\deploy-kit\
+  注意：这里不是 Docker 镜像存放位置。镜像/数据默认在 C 盘 Docker 数据盘，
+        一般不用改；若要改，见「使用说明.txt」数据盘章节。
+
+第3步：一键启动
+  双击「部署工具.bat」→ 选 [1]
+  或在该目录执行：
+     powershell -ExecutionPolicy Bypass -File .\start.ps1
+  （镜像已默认 DaoCloud 前缀，可减少 Hub 拉取被拒）
+
+第4步：先完成 OneBot 预配置（重要，否则扫码后连不上）
+  首次启动时 AstrBot / SnowLuma 两边配置都是空的。
+  请按「使用说明.txt」§预配置，或让本机 Agent 执行手册 §5.4：
+  - AstrBot：ws_reverse_host=0.0.0.0，端口 6199（先停容器再改配置）
+  - SnowLuma：wsClients 连 ws://astrbot:6199/ws，然后 supervisorctl restart snowluma
+
+第5步：看密码，在本机浏览器登录（按顺序）
+  1) SnowLuma WebUI  http://127.0.0.1:5099
+     用户名 admin，密码看脚本输出 → 登录后立刻改密
+  2) noVNC 扫码      http://127.0.0.1:6081/
+     密码看脚本输出 → 手机 QQ 扫码登录
+  3) AstrBot WebUI   http://127.0.0.1:6185
+     用户名 astrbot，密码看脚本输出 → 改密 + 配置模型 API Key
+
+  查看密码/连通：
+     powershell -ExecutionPolicy Bypass -File .\show-passwords.ps1
+
+第6步：确认跑通
+  再跑 show-passwords.ps1
+  看到 LINKED OK (AstrBot inbound sockets: N) 即连通
+  用手机 QQ 给机器人发一条消息测试
+
+【密码在哪看？】
+  .\show-passwords.ps1
+  或双击 部署工具.bat → [2]
+  首次启动时 start.ps1 也会打印初始密码。
+
+【日常命令】
+  启动  .\start.ps1
+  密码  .\show-passwords.ps1
+  状态  .\status.ps1
+  停止  .\stop.ps1
+
+【忘记 AstrBot 密码】
+  docker exec -it astrbot astrbot password
+  docker restart astrbot
+
+【详细说明】
+  同目录「使用说明.txt」；Agent 全文见 AGENT-DEPLOY-MANUAL.md（v1.1）

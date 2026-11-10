@@ -1,0 +1,12 @@
+# Docker Desktop 安装包不进 Git（体积大；网盘可传完整包）
+Docker Desktop Installer.exe
+
+# 系统 / 临时
+Thumbs.db
+Desktop.ini
+*.log
+.DS_Store
+
+# 本地运行数据（若误拷进来）
+data/
+*.vhdx

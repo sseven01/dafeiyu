@@ -1,0 +1,284 @@
+# SnowLuma + AstrBot 本机部署说明（v1.1）
+
+在**这台电脑**上自己完成部署。把整个 `deploy-kit` 文件夹放到本机（例如 `D:\docker-snowluma-astrbot\`），按下面步骤操作即可。
+
+---
+
+## 两个「路径」不要搞混
+
+| 名称 | 是什么 | 占用 | 要不要选 |
+|------|--------|------|----------|
+| **A. 脚本文件夹（deploy-kit）** | `start.ps1` 等小文件放哪 | 几十 KB | 你自己挑一个目录即可 |
+| **B. Docker 数据盘** | **镜像 + 数据卷**存放（`docker_data.vhdx`） | 约 8–15 GB | **默认不改**（C 盘 Docker 默认位置） |
+
+部署时若有人（或 Agent）问「目录选哪个」：
+- 问的是 **A** → 回脚本路径，例如 `D:\docker-snowluma-astrbot\deploy-kit\`
+- 问的是「镜像存哪 / 数据盘」→ 那是 **B**，默认保持即可
+
+A 和 B 可以在不同盘，互不影响。下面步骤里的路径若无说明，均指 **A**。
+
+---
+
+## 你需要准备什么
+
+| 项目 | 要求 |
+|------|------|
+| 系统 | Windows 10/11 |
+| 软件 | Docker Desktop（先安装并启动） |
+| 资源 | 建议 4GB 以上内存；磁盘可用 ≥ 15GB |
+| 网络 | 能拉取镜像（本包默认 DaoCloud 前缀，减少 Hub 被拒） |
+| 端口空闲 | 5099、6081、6185、6199、13000、13001 |
+
+> 端口只绑定本机 `127.0.0.1`，局域网/外网默认访问不到，相对安全。
+
+---
+
+## 第一步：安装并启动 Docker Desktop
+
+1. 下载安装：https://www.docker.com/products/docker-desktop/
+2. 启动 **Docker Desktop**，等托盘图标稳定
+3. PowerShell 验证：
+
+```powershell
+docker --version
+docker-compose version
+```
+
+两条都能出版本号即可。
+
+---
+
+## 第二步：一键启动
+
+在 `deploy-kit` 目录打开 PowerShell：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start.ps1
+```
+
+或：双击 `部署工具.bat` → 选 **[1]**
+
+脚本会检查 Docker、执行 `up -d`、打印访问信息。
+
+**首次会拉镜像，可能几分钟。** 镜像已是 `m.daocloud.io/docker.io/...` 前缀；若仍报 `pull access denied`，见文末故障表。
+
+---
+
+## 第三步：OneBot 预配置（必做，先于扫码）
+
+首次启动时两边配置都是空的：**不预写，扫码后也连不上。**
+
+### 3.1 AstrBot（先停容器，避免配置被运行中进程覆盖）
+
+写入 `/AstrBot/data/cmd_config.json` 的 `platform`（或等价字段结构）：
+
+```json
+{
+  "id": "default",
+  "type": "aiocqhttp",
+  "enable": true,
+  "ws_reverse_host": "0.0.0.0",
+  "ws_reverse_port": 6199,
+  "ws_reverse_token": ""
+}
+```
+
+要点：
+- **主机只能是 `0.0.0.0`**，不能填 `http://...`、`host.docker.internal`
+- 改完再 `docker start astrbot`
+- 若用 Agent / 手册，见 `AGENT-DEPLOY-MANUAL.md` §5.4
+
+### 3.2 SnowLuma
+
+写入 `/app/data/config/onebot.json` 的 `networks.wsClients`：
+
+```json
+{
+  "name": "astrbot",
+  "url": "ws://astrbot:6199/ws",
+  "reconnectInterval": 5000,
+  "reconnectEnabled": true,
+  "accessToken": "",
+  "messageFormat": "array",
+  "reportSelfMessage": false
+}
+```
+
+然后：
+
+```powershell
+docker exec snowluma supervisorctl restart snowluma
+```
+
+> 导入 AstrBot 备份会覆盖 platform，导入后务必再检查一遍 `0.0.0.0:6199`。
+
+---
+
+## 第四步：登录（本机浏览器，按顺序）
+
+随时执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\show-passwords.ps1
+```
+
+### 1. SnowLuma WebUI — 改密码
+
+- 地址：http://127.0.0.1:5099
+- 用户名：`admin`
+- 密码：看脚本输出
+
+**登录后立刻修改。** 不改则每次重启都会换新密码。
+
+### 2. noVNC 扫码登录 QQ
+
+- 地址：http://127.0.0.1:6081/
+- 密码：看脚本输出
+
+手机 QQ 扫码登录。
+
+### 3. AstrBot WebUI — 配模型
+
+- 地址：http://127.0.0.1:6185
+- 用户名：`astrbot`
+- 密码：看脚本输出
+
+登录后改密码，进入模型配置填入 API Key（例如 DeepSeek）。
+
+---
+
+## 第五步：确认跑通
+
+再跑一次 `show-passwords.ps1`，期望：
+
+```text
+LINKED OK (AstrBot inbound sockets: N)    # N ≥ 1
+```
+
+然后用手机 QQ 给机器人发一条消息（私聊或群 @），看是否收到 AI 回复。
+
+---
+
+## 日常命令
+
+| 操作 | 命令 |
+|------|------|
+| 启动 | `.\start.ps1` |
+| 查看密码/连通 | `.\show-passwords.ps1` |
+| 状态 | `.\status.ps1` |
+| 停止 | `.\stop.ps1` |
+| 重启 | `docker compose restart` |
+| 更新镜像 | `docker compose pull; docker compose up -d` |
+
+### 忘记 AstrBot 密码
+
+```powershell
+docker exec -it astrbot astrbot password
+docker restart astrbot
+```
+
+### SnowLuma 密码
+
+- 已改过：用你自己设的密码  
+- 从未改过：`docker logs snowluma 2>&1 | Select-String "initial credentials"` 取最新一条  
+
+---
+
+## 常见问题
+
+### 1. `pull access denied`
+
+不是网络慢，是 Hub 拒绝。确认 compose 里 image 为：
+
+```text
+m.daocloud.io/docker.io/motricseven7/snowluma:latest
+m.daocloud.io/docker.io/soulter/astrbot:latest
+```
+
+### 2. 端口被占用
+
+`port is already allocated` → 改 compose 冒号**左侧**宿主机端口，例如 `127.0.0.1:15099:5099`，再 `up -d`。
+
+### 3. 扫码后连不上
+
+1. 是否完成第三步预配置  
+2. `ws_reverse_host` 是否为 `0.0.0.0`  
+3. `show-passwords.ps1` 是否出现 `connected ws://astrbot:6199/ws`  
+4. 导入过备份的话，platform 是否被覆盖  
+
+### 4. `Name or service not known` 且堆栈在 hypercorn bind
+
+AstrBot 监听主机填错 → 改为 `0.0.0.0`，端口 `6199`，重启 astrbot。
+
+### 5. LINKED 一直不确认 / 日志中文乱码
+
+用 v1.1 的 `show-passwords.ps1`（已设 UTF-8 控制台，并用容器内 TCP ESTABLISHED 判定）。
+
+### 6. zip 解压中文文件名乱码
+
+打包请用 Python `zipfile`；不要用 PS 5.1 的 `Compress-Archive` 打含中文名的包。
+
+### 7. Docker 启动失败
+
+重启 Docker Desktop；仍不行再重启电脑。
+
+---
+
+## 数据在哪里？
+
+脚本在 **A**（deploy-kit 文件夹）；真正的大文件在 **B**（Docker 数据卷/镜像）：
+
+| 卷名 | 内容 |
+|------|------|
+| `snowluma-gateway-data` | SnowLuma / OneBot 配置 |
+| `snowluma-client-config` | QQ 客户端配置（通常最大） |
+| `snowluma-client-data` | QQ 客户端数据 |
+| `astrbot-data` | AstrBot 配置、模型 key、插件 |
+
+镜像与卷占用在 Docker 虚拟磁盘 **B**（默认 `%LOCALAPPDATA%\Docker\wsl\disk\docker_data.vhdx`）。  
+删除 deploy-kit 文件夹**不会**清掉镜像；清理镜像/卷要用 Docker 命令（见下）。
+
+**完全清理（会丢登录态，慎用）：**
+
+```powershell
+docker compose down
+docker volume rm snowluma-gateway-data snowluma-client-config snowluma-client-data astrbot-data
+```
+
+---
+
+## 交付检查清单
+
+- [ ] Docker Desktop 正在运行  
+- [ ] `.\start.ps1` 无报错  
+- [ ] `docker ps` 中 snowluma、astrbot 为 Up  
+- [ ] **OneBot 预配置已完成（第三步）**  
+- [ ] 能打开 5099 / 6081 / 6185 并登录  
+- [ ] `show-passwords.ps1` 显示 `LINKED OK (... sockets: N)` 且 N≥1  
+- [ ] QQ 发消息有 AI 回复  
+
+---
+
+## 目录结构
+
+```text
+deploy-kit\
+├── docker-compose.yml
+├── start.ps1
+├── show-passwords.ps1
+├── status.ps1
+├── stop.ps1
+├── 部署工具.bat
+├── AGENT-DEPLOY-MANUAL.md   # Agent 全文（v1.1）
+├── 快速上手.txt
+└── 使用说明.txt             # 本文件
+```
+
+---
+
+## 安全提示
+
+- 所有服务只绑 `127.0.0.1`  
+- 不要把 6081、5099 暴露到公网  
+- 登录后修改所有默认密码  
+- API Key 只存在 astrbot-data 卷中，勿外泄  
